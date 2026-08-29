@@ -152,7 +152,7 @@ saves you'd hate to lose.
 .venv/bin/python -m pytest
 ```
 
-101 tests covering compression, error correction, the card file system,
+111 tests covering compression, error correction, the card file system,
 all four save formats, the icon rendering, drag and drop, and the command
 line. The interface tests run without a screen.
 
