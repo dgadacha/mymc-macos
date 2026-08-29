@@ -59,6 +59,9 @@ self-contained. Don't hand it to someone else as is.
 mymc-gui
 ```
 
+The arrow next to the Open button lists the cards you opened recently,
+and so does File > Open Recent.
+
 Drop a memory card image on the window to open it. Drop a .psu, .max,
 .cbs, .sps or .xps on it to import that save. It works out what a file is
 by looking inside it, so a card called Mcd001.bin or Mcd001.mcd or with

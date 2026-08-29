@@ -14,12 +14,14 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QProgressDialog,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -43,6 +45,9 @@ SAVE_FILTER = (
 IMAGE_FILTER = (
     "PS2 memory card images (*.ps2 *.mcd *.mc2 *.bin *.mcr);;All files (*)"
 )
+
+#: How many cards to remember in the Open Recent menu.
+MAX_RECENT = 10
 
 
 def classify_file(path):
@@ -248,11 +253,20 @@ class MainWindow(QMainWindow):
         self.act_about.setMenuRole(QAction.AboutRole)
         self.act_about.triggered.connect(self.about)
 
+        self.recent_menu = QMenu("Open Recent", self)
+        self.act_clear_recent = QAction("Clear Menu", self)
+        self.act_clear_recent.triggered.connect(self.clear_recent)
+
         toolbar = self.addToolBar("Main")
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(22, 22))
         toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         toolbar.addAction(self.act_open)
+        # Hold the Open button, or click its arrow, for the recent cards.
+        open_button = toolbar.widgetForAction(self.act_open)
+        if open_button is not None:
+            open_button.setMenu(self.recent_menu)
+            open_button.setPopupMode(QToolButton.MenuButtonPopup)
         toolbar.addSeparator()
         toolbar.addAction(self.act_import)
         toolbar.addAction(self.act_export)
@@ -261,6 +275,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar().addMenu("&File")
         menu.addAction(self.act_format)
         menu.addAction(self.act_open)
+        menu.addMenu(self.recent_menu)
         menu.addAction(self.act_close)
         menu.addSeparator()
         menu.addAction(self.act_import)
@@ -277,6 +292,8 @@ class MainWindow(QMainWindow):
         menu = self.menuBar().addMenu("&Help")
         menu.addAction(self.act_about)
 
+        self._rebuild_recent_menu()
+
     #
     # Memory card handling
     #
@@ -288,6 +305,39 @@ class MainWindow(QMainWindow):
         message = getattr(why, "strerror", None) or str(why)
         name = getattr(why, "filename", None) or filename
         self._error((name + ": " + message) if name else message)
+
+    def recent_paths(self):
+        """Recently opened cards, most recent first, skipping any gone."""
+        stored = self.settings.value("recent", [], type=list) or []
+        if isinstance(stored, str):  # a one-item list comes back as a string
+            stored = [stored]
+        return [p for p in stored if p and os.path.exists(p)][:MAX_RECENT]
+
+    def _remember_recent(self, path):
+        path = os.path.abspath(path)
+        paths = [p for p in self.recent_paths() if p != path]
+        paths.insert(0, path)
+        self.settings.setValue("recent", paths[:MAX_RECENT])
+        self._rebuild_recent_menu()
+
+    def clear_recent(self):
+        self.settings.setValue("recent", [])
+        self._rebuild_recent_menu()
+
+    def _rebuild_recent_menu(self):
+        self.recent_menu.clear()
+        paths = self.recent_paths()
+        for path in paths:
+            action = self.recent_menu.addAction(os.path.basename(path))
+            action.setToolTip(path)
+            action.setData(path)
+            action.triggered.connect(
+                lambda _=False, p=path: self.open_image(p)
+            )
+        self.recent_menu.setEnabled(bool(paths))
+        if paths:
+            self.recent_menu.addSeparator()
+            self.recent_menu.addAction(self.act_clear_recent)
 
     def choose_image(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -320,6 +370,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("memcard_dir", directory)
         self.setWindowTitle("mymc - " + os.path.basename(path))
         self.setWindowFilePath(path)
+        self._remember_recent(path)
         self.refresh()
 
     def close_image(self):
