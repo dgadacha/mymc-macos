@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mymc-macos"
+version = "3.0.0"
+description = "Manipulate PlayStation 2 memory card images: a Python 3 port of mymc with a Qt interface that runs on macOS"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Unlicense"
+license-files = ["LICENSE.txt"]
+keywords = ["playstation2", "ps2", "memory card", "pcsx2", "savegame", "psu", "max drive"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: MacOS X",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Topic :: System :: Filesystems",
+    "Topic :: Utilities",
+]
+
+# The core library and command line tool have no dependencies at all.
+dependencies = []
+
+[project.optional-dependencies]
+# Everything needed for the graphical interface, including the 3D icon view.
+gui = ["PySide6>=6.5", "numpy>=1.21"]
+# NumPy alone: ~50x faster ECC, and a much faster LZARI bit packer.
+speed = ["numpy>=1.21"]
+
+[project.scripts]
+mymc = "mymc.cli:main"
+
+[project.gui-scripts]
+mymc-gui = "mymc.cli:main_gui"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
