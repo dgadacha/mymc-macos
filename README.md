@@ -11,7 +11,12 @@ interface wxPython et deux DLL Windows (`mymcsup.dll` pour la compression,
 `mymcicon.dll` en Direct3D pour l'affichage des icônes 3D) : rien de tout
 cela ne fonctionnait sur Mac.
 
-![Copie d'écran](docs/screenshot.png)
+![L'interface de mymc sur macOS](docs/screenshot.png)
+
+Les icônes 3D des sauvegardes, telles que mymc les affiche sur macOS —
+géométrie, texture et éclairage lus depuis la carte, rendus sans GPU :
+
+![Icônes 3D de sauvegardes PS2](docs/icons.png)
 
 ## Ce qui a changé
 
