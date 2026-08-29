@@ -1,271 +1,266 @@
-# mymc pour macOS
+# mymc for macOS
 
-Un utilitaire pour manipuler les images de cartes mémoire PlayStation 2
-(celles de PCSX2 : `Mcd001.ps2`, `Mcd002.ps2`…) : importer et exporter des
-sauvegardes, les lister, les supprimer, en créer de nouvelles.
+A utility for working with PlayStation 2 memory card images — the
+`Mcd001.ps2` files PCSX2 uses. Import and export save games, list them,
+delete them, create new cards.
 
-C'est un portage en **Python 3** de [mymc](https://www.csclub.uwaterloo.ca/~rridge/mymc/)
-de Ross Ridge (domaine public), avec une interface **Qt** qui tourne
-nativement sur macOS. Le code d'origine était en Python 2.7 avec une
-interface wxPython et deux DLL Windows (`mymcsup.dll` pour la compression,
-`mymcicon.dll` en Direct3D pour l'affichage des icônes 3D) : rien de tout
-cela ne fonctionnait sur Mac.
+This is a **Python 3** port of [mymc](https://www.csclub.uwaterloo.ca/~rridge/mymc/)
+by Ross Ridge (public domain), with a **Qt** interface that runs natively
+on macOS. The original was Python 2.7, wxPython, and two Windows DLLs:
+`mymcsup.dll` for MAX Drive compression and `mymcicon.dll`, which drew
+the 3D save icons with Direct3D. None of that worked on a Mac.
 
-![L'interface de mymc sur macOS](docs/screenshot.png)
+![mymc running on macOS](docs/screenshot.png)
 
-Les icônes 3D des sauvegardes, telles que mymc les affiche sur macOS —
-géométrie, texture et éclairage lus depuis la carte, rendus sans GPU :
+The 3D save icons, as mymc renders them on macOS — geometry, texture and
+lighting read straight off the card, drawn without a GPU:
 
-![Icônes 3D de sauvegardes PS2](docs/icons.png)
+![PS2 save icons rendered in software](docs/icons.png)
 
-## Ce qui a changé
+## What changed
 
-| | mymc 2.7 (original) | cette version |
+| | mymc 2.7 (original) | this version |
 |---|---|---|
-| Python | 2.7 (fin de vie en 2020) | 3.9 → 3.14 |
-| Interface | wxPython | PySide6 / Qt 6, mode sombre, Retina |
-| Icônes 3D | `mymcicon.dll`, Direct3D, Windows seulement | rendu logiciel NumPy, partout |
-| Compression MAX Drive | `mymcsup.dll`, sinon 100× plus lent | Python pur, accéléré par NumPy |
-| ECC | boucles Python | vectorisé NumPy (~50× plus rapide) |
-| Ligne de commande | `optparse` | `argparse`, sous-commandes, `--help` par commande |
-| Intégration macOS | — | bundle `.app`, double-clic depuis le Finder, glisser-déposer |
+| Python | 2.7 (end of life in 2020) | 3.9 → 3.14 |
+| Interface | wxPython | PySide6 / Qt 6, dark mode, Retina |
+| 3D icons | `mymcicon.dll`, Direct3D, Windows only | NumPy software renderer, everywhere |
+| MAX Drive compression | `mymcsup.dll`, otherwise 100× slower | pure Python, NumPy-accelerated |
+| ECC | Python loops | vectorised with NumPy (~50× faster) |
+| Command line | `optparse` | `argparse`, subcommands, per-command `--help` |
+| macOS integration | — | `.app` bundle, Finder double-click, drag and drop |
 
-Le format des images produites est identique : chaque champ du superblock
-correspond à celui d'une vraie carte PS2, et les images font exactement
-8 650 752 octets comme celles de PCSX2.
+The images it produces are identical in format: every superblock field
+matches a real PS2 card, and images are exactly 8,650,752 bytes like
+PCSX2's own.
 
 ## Installation
 
-Il faut Python 3.9 ou plus récent. Sur un Mac avec Homebrew :
+You need Python 3.9 or newer. On a Mac with Homebrew:
 
 ```bash
 brew install python
 ```
 
-Puis, depuis ce dossier :
+Then, from this directory:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[gui]"
 ```
 
-Les commandes `mymc` et `mymc-gui` sont alors dans `.venv/bin/`. Pour les
-avoir partout, ajoute ce dossier à ton `PATH`, ou installe avec
-[pipx](https://pipx.pypa.io/) :
+The `mymc` and `mymc-gui` commands are then in `.venv/bin/`. To have them
+on your `PATH` everywhere, add that directory to it, or install with
+[pipx](https://pipx.pypa.io/):
 
 ```bash
 pipx install ".[gui]"
 ```
 
-**Sans interface graphique**, la bibliothèque et la ligne de commande
-n'ont *aucune* dépendance :
+**Without the GUI**, the library and command line tool have *no*
+dependencies at all:
 
 ```bash
 pipx install .
 ```
 
-NumPy reste vivement recommandé (`pip install ".[speed]"`) : il accélère
-beaucoup le calcul des codes ECC. Sans lui, tout fonctionne quand même.
+NumPy is still worth having (`pip install ".[speed]"`) — it makes the ECC
+calculation much faster. Everything works without it.
 
-### Application macOS
+### macOS application
 
-Pour obtenir une icône dans le Dock, une barre de menus normale et les
-associations de fichiers dans le Finder :
+For a Dock icon, a proper menu bar and Finder file associations:
 
 ```bash
 .venv/bin/python tools/make_app.py --output dist
 ```
 
-Puis glisse `dist/mymc.app` dans `/Applications`. Double-cliquer sur un
-`.ps2` l'ouvre ; double-cliquer sur une sauvegarde `.psu` ou `.max`
-l'importe dans la carte ouverte.
+Then drag `dist/mymc.app` into `/Applications`. Double-clicking a `.ps2`
+opens it; double-clicking a `.psu` or `.max` save imports it into the
+card you have open.
 
-Le bundle appelle l'interpréteur dans lequel mymc est installé : il n'est
-donc pas autonome, ne le donne pas à quelqu'un d'autre tel quel. Pour une
-application redistribuable, passe par PyInstaller ou py2app sur le même
-point d'entrée (`mymc.cli:main_gui`).
+The bundle launches the interpreter mymc is installed in, so it is not
+self-contained — don't hand it to someone else as is. For a
+redistributable app, run PyInstaller or py2app against the same entry
+point (`mymc.cli:main_gui`).
 
-## Interface graphique
+## Graphical interface
 
 ```bash
-mymc-gui                    # ou :  mymc Mcd001.ps2 gui
+mymc-gui                    # or:  mymc Mcd001.ps2 gui
 ```
 
-- liste triable des sauvegardes, avec titre, taille et date ;
-- aperçu de l'**icône 3D animée** de la sauvegarde : clique-glisse pour la
-  faire tourner, double-clic pour recadrer, clic droit pour l'éclairage,
-  la caméra et l'animation ;
-- **glisser-déposer** : lâche une image de carte sur la fenêtre pour
-  l'ouvrir, ou un `.psu`, `.max`, `.cbs`, `.sps`, `.xps` pour l'importer.
-  Le type est reconnu à l'en-tête du fichier, pas à son extension : une
-  carte nommée `Mcd001.bin`, `.mcd`, `.mcr` ou sans extension du tout est
-  ouverte quand même ;
-- export en `.psu` (EMS) ou `.max` (MAX Drive), avec barre de progression ;
-- espace libre affiché en permanence dans la barre d'état.
+- a sortable list of saves, with title, size and date;
+- a preview of the save's **animated 3D icon**: drag to spin it,
+  double-click to recentre, right-click for lighting, camera and
+  animation options;
+- **drag and drop**: drop a card image on the window to open it, or a
+  `.psu`, `.max`, `.cbs`, `.sps` or `.xps` to import it. The type is
+  recognised from the file's header rather than its name, so a card
+  called `Mcd001.bin`, `.mcd`, `.mcr` or with no extension at all opens
+  just the same;
+- export to `.psu` (EMS) or `.max` (MAX Drive), with a progress bar;
+- free space shown in the status bar at all times.
 
-Les titres japonais sont affichés tels quels ; *Affichage ▸ Transliterate
-Japanese Titles* les convertit en caractères latins approchants
+Japanese titles are displayed as they are stored; *View ▸ Transliterate
+Japanese Titles* converts them to lookalike Latin characters
 (`ＤＡＴＡ` → `DATA`, `【あ】` → `[あ]`).
 
-## Ligne de commande
+## Command line
 
-Le principe : `mymc IMAGE COMMANDE [options]`.
+The shape of it is `mymc IMAGE COMMAND [options]`.
 
 ```bash
-# créer une carte de 8 Mo
+# create an 8 MB card
 mymc Mcd001.ps2 format
 
-# voir ce qu'elle contient, comme dans le navigateur de la PS2
+# see what is on it, the way the PS2 browser would show it
 mymc Mcd001.ps2 dir
 
-# importer des sauvegardes (le format est détecté tout seul)
+# import saves (the format is detected automatically)
 mymc Mcd001.ps2 import ~/Downloads/*.psu ~/Downloads/*.max
 
-# exporter, avec un nom de fichier descriptif
+# export, with a descriptive filename
 mymc Mcd001.ps2 export -l BASLUS-20678SAVE
-# → « SLUS-20678 UNLIMITED SAGA SYSTEMDATA (9AA6AB3E).psu »
+# → "SLUS-20678 UNLIMITED SAGA SYSTEMDATA (9AA6AB3E).psu"
 
-# exporter au format MAX Drive
+# export in the MAX Drive format
 mymc Mcd001.ps2 export -m BASLUS-20678SAVE
 
-# supprimer une sauvegarde, vérifier le système de fichiers
+# delete a save, check the file system
 mymc Mcd001.ps2 delete BASLUS-20678SAVE
 mymc Mcd001.ps2 check
 ```
 
-Commandes disponibles : `dir`, `ls`, `add`, `extract`, `mkdir`, `remove`,
+Available commands: `dir`, `ls`, `add`, `extract`, `mkdir`, `remove`,
 `import`, `export`, `delete`, `set`, `clear`, `rename`, `df`, `check`,
-`format`, `gui`. Chacune a son aide :
+`format`, `gui`. Each has its own help:
 
 ```bash
 mymc Mcd001.ps2 export --help
 ```
 
-### Formats de sauvegarde
+### Save file formats
 
-| Format | Extension | Lecture | Écriture |
+| Format | Extension | Read | Write |
 |---|---|:---:|:---:|
-| EMS | `.psu` | oui | oui |
-| MAX Drive | `.max` | oui | oui |
-| Code Breaker | `.cbs` | oui | — |
-| SharkPort / X-Port | `.sps`, `.xps` | oui | — |
+| EMS | `.psu` | yes | yes |
+| MAX Drive | `.max` | yes | yes |
+| Code Breaker | `.cbs` | yes | — |
+| SharkPort / X-Port | `.sps`, `.xps` | yes | — |
 | nPort | `.npo` | — | — |
 
-## Utilisation comme bibliothèque
+## Using it as a library
 
 ```python
 from mymc import ps2mc, ps2save
 
 with open("Mcd001.ps2", "r+b") as f:
     with ps2mc.ps2mc(f) as mc:
-        print(mc.get_free_space() // 1024, "Ko libres")
+        print(mc.get_free_space() // 1024, "KB free")
 
         with open("save.psu", "rb") as g:
             mc.import_save_file(ps2save.load_save_file(g), ignore_existing=True)
 
         sf = mc.export_save_file("/BASLUS-20678SAVE")
-        with open("copie.max", "wb") as g:
+        with open("copy.max", "wb") as g:
             sf.save_max_drive(g)
 ```
 
-Rendre l'icône 3D d'une sauvegarde en PNG, sans interface graphique :
+Render a save's 3D icon to a PNG, with no GUI involved:
 
 ```python
 from mymc import ps2icon, render
 
 icon = ps2icon.parse_icon(open("list.icn", "rb").read())
-render.render_to_png(icon, "icone.png", size=256, angle=0.6)
+render.render_to_png(icon, "icon.png", size=256, angle=0.6)
 ```
 
-## Validé sur de vraies cartes
+## Tested on real cards
 
-Testé sur les cartes PCSX2 de `~/Library/Application Support/PCSX2/memcards`,
-contenant des sauvegardes de Kingdom Hearts, Gran Turismo 4, Batman Begins
-et Burnout 3 :
+Tested against the PCSX2 cards in `~/Library/Application Support/PCSX2/memcards`,
+holding saves from Kingdom Hearts, Gran Turismo 4, Batman Begins,
+Tekken 5, Burnout 3 and Need for Speed Most Wanted:
 
-- lecture du sommaire, des titres (japonais pleine chasse compris) et
-  vérification du système de fichiers : sans erreur ;
-- **les icônes 3D des jeux s'affichent**, texturées et éclairées comme
-  dans le navigateur de la PS2 ;
-- les quatre sauvegardes survivent au cycle carte → `.psu` → `.max` →
-  carte avec des empreintes SHA-256 identiques.
+- reading the directory, the titles (full-width Japanese included) and
+  the file system check: no errors;
+- **the games' 3D icons display**, textured and lit as they are in the
+  PS2's own memory card browser;
+- every save survives card → `.psu` → `.max` → card with identical
+  SHA-256 digests.
 
-Une carte que PCSX2 a créée mais qu'aucun jeu n'a encore formatée est
-entièrement à `0xFF` : mymc le dit et propose de la formater, au lieu de
-la déclarer illisible.
+A card PCSX2 has created but no game has formatted yet is all `0xFF`;
+mymc says so and points at the format command instead of calling it
+unreadable.
 
-Un point de lenteur : la compression MAX Drive est en Python pur. Une
-sauvegarde de 130 Ko passe en une fraction de seconde, mais les 1,5 Mo de
-données de jeu de Gran Turismo 4 demandent une vingtaine de secondes
-(pour un gain nul — ces données sont déjà incompressibles). L'interface
-affiche une barre de progression et reste réactive. Le format `.psu`, par
-défaut, est instantané.
+One thing is slow: MAX Drive compression is pure Python. A 130 KB save
+goes through in a fraction of a second, but Gran Turismo 4's 1.5 MB of
+game data takes about twenty seconds — for no gain, since that data is
+already incompressible. The interface shows a progress bar and stays
+responsive. The default `.psu` format is instant.
 
-## Précautions
+## Before you use it
 
-- **Ne modifie pas une image pendant que PCSX2 l'utilise.** L'émulateur
-  garde la carte en mémoire et la réécrira par-dessus tes modifications,
-  voire la corrompra. Ferme PCSX2 d'abord.
-- Fais une sauvegarde de tes images avant les opérations d'écriture. Le
-  code d'origine se décrivait comme de qualité « alpha » ; ce portage est
-  couvert par des tests, mais la prudence reste de mise avec des données
-  auxquelles tu tiens.
-- La liste des blocs défectueux est ignorée, comme dans l'original. Sans
-  effet sur les images créées par PCSX2 ou par mymc, qui n'en ont pas.
+- **Do not modify an image while PCSX2 has it open.** The emulator keeps
+  the card in memory and will write over your changes, or corrupt it.
+  Quit PCSX2 first.
+- Back up your images before writing to them. The original described
+  itself as "alpha" quality; this port has tests behind it, but caution
+  is still warranted with data you care about.
+- The bad block list is ignored, as in the original. That has no effect
+  on images made by PCSX2 or by mymc, which have none.
 
-## Développement
+## Development
 
 ```bash
 .venv/bin/pip install pytest
 .venv/bin/python -m pytest          # 101 tests
 ```
 
-Les tests couvrent les allers-retours de compression LZARI, la correction
-d'erreurs ECC (comparée bit à bit à l'algorithme d'origine), le système de
-fichiers, les quatre formats de sauvegarde, le rendu des icônes, le
-glisser-déposer et la ligne de commande de bout en bout. Les tests
-d'interface tournent sans écran, via le greffon Qt « offscreen ».
+The tests cover LZARI compression round trips, ECC correction (compared
+bit for bit against the original algorithm), the file system, all four
+save formats, icon rendering, drag and drop, and the command line end to
+end. The interface tests run without a display, through Qt's offscreen
+platform plugin.
 
-Organisation :
+Layout:
 
 ```
 src/mymc/
-    ps2mc.py        système de fichiers de la carte
-    ps2mc_dir.py    entrées de répertoire
-    ps2mc_ecc.py    codes de Hamming (ECC)
-    ps2save.py      formats .psu / .max / .cbs / .sps
-    lzari.py        codec LZARI (compression MAX Drive)
-    ps2icon.py      lecture du format d'icône 3D .icn
-    render.py       rastériseur logiciel pour les icônes
-    cli.py          ligne de commande
-    gui/            interface Qt
+    ps2mc.py        the card's file system
+    ps2mc_dir.py    directory entries
+    ps2mc_ecc.py    Hamming codes (ECC)
+    ps2save.py      the .psu / .max / .cbs / .sps formats
+    lzari.py        LZARI codec (MAX Drive compression)
+    ps2icon.py      the .icn 3D icon format
+    render.py       software rasteriser for the icons
+    cli.py          command line
+    gui/            Qt interface
 ```
 
-### Notes de portage
+### Porting notes
 
-Trois points ont demandé de l'attention :
+Three things needed care:
 
-- **`bytes` et `str`.** Le contenu des fichiers est en `bytes` partout ;
-  les noms d'entrées de répertoire sont exposés en `str` via `latin-1`,
-  qui fait correspondre un à un les octets 0–255 aux 256 premiers points
-  de code : l'aller-retour reste donc exact, même pour un nom non ASCII.
-- **La division.** L'arithmétique du codeur LZARI dépend d'une division
-  entière tronquée ; les 16 divisions du module d'origine ont été
-  reprises une par une en division entière (`//`).
-- **L'ECC.** Le portage a été comparé à une transcription littérale de
-  l'algorithme Python 2 sur 500 motifs d'erreur aléatoires : aucune
-  divergence. Les erreurs d'un bit sont corrigées, celles de deux bits
-  détectées.
+- **`bytes` versus `str`.** File contents are `bytes` throughout;
+  directory entry names are exposed as `str` through `latin-1`, which
+  maps bytes 0–255 one to one onto the first 256 code points, so the
+  round trip stays exact even for a non-ASCII name.
+- **Division.** The LZARI arithmetic coder depends on truncating integer
+  division; all 16 divisions in the original module were converted one by
+  one to floor division (`//`).
+- **ECC.** The port was compared against a literal transcription of the
+  Python 2 algorithm over 500 random error patterns: no divergence.
+  Single bit errors are corrected, two bit errors detected.
 
-Le rendu des icônes, lui, n'a pas d'original à comparer. Le premier jet
-affichait tout **en miroir** — « KINGDOM HEARTS » se lisait à l'envers —
-parce que la base de la caméra utilisait `cross(forward, up)` au lieu de
-`cross(up, forward)`. Deux tests le verrouillent désormais : un triangle
-placé côté +X du modèle doit apparaître à droite de l'image, un triangle
-en +Y (la PS2 oriente Y vers le bas) doit apparaître en bas.
+The icon renderer had no original to compare against. The first version
+drew everything **mirrored** — "KINGDOM HEARTS" read backwards — because
+the view basis used `cross(forward, up)` instead of `cross(up, forward)`.
+Two tests pin it down now: a triangle on the model's +X side must land on
+the right of the frame, and one at +Y — PS2 icon space points Y down —
+at the bottom.
 
 ## Licence
 
-Domaine public, comme le mymc d'origine. Voir `LICENSE.txt`.
+Public domain, like the original mymc. See `LICENSE.txt`.
 
-mymc a été écrit par Ross Ridge. L'algorithme LZARI est de
-Haruhiko Okumura.
+mymc was written by Ross Ridge. The LZARI algorithm is Haruhiko
+Okumura's.
