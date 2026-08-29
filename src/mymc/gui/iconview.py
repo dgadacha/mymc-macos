@@ -180,7 +180,9 @@ class IconView(QWidget):
         if self._drag_origin is None:
             return
         dx = event.position().toPoint().x() - self._drag_origin.x()
-        self._angle = self._drag_angle + dx * 0.015
+        # Negative so the model follows the pointer: dragging right turns
+        # the near face right, bringing the model's left side into view.
+        self._angle = self._drag_angle - dx * 0.015
         self.update()
 
     def mouseReleaseEvent(self, event):

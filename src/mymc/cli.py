@@ -598,7 +598,12 @@ def main(argv=None):
                 f.close()
 
     except (ps2mc.error, ps2save.error) as value:
-        write_error(getattr(value, "filename", None) or mcname, str(value))
+        # io_error.__str__ already prefixes the filename; take the bare
+        # message so it is not printed twice.
+        write_error(
+            getattr(value, "filename", None) or mcname,
+            getattr(value, "strerror", None) or str(value),
+        )
         if opts.debug:
             raise
         return 1

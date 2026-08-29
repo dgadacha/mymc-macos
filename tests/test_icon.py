@@ -79,6 +79,46 @@ class TestRenderer:
         )
         assert np.array_equal(small, r.render(bigger, angle=0.6))
 
+    def _one_triangle(self, corner):
+        """An icon holding a single triangle around a given point."""
+        centre = np.asarray(corner, dtype=np.float32)
+        offsets = np.array(
+            [[-0.2, -0.2, 0.0], [0.2, -0.2, 0.0], [0.0, 0.2, 0.0]], np.float32
+        )
+        verts = (centre + offsets).astype(np.float32)
+        normals = np.tile(np.array([0, 0, -1], np.float32), (3, 1))
+        return ps2icon.Icon(
+            verts[None, ...], normals, np.zeros((3, 2), np.float32),
+            np.ones((3, 4), np.float32), None, 1, 0.0, [],
+        )
+
+    def _centre_of_mass(self, img):
+        lit = img.reshape(img.shape[0], img.shape[1], 3).max(axis=2) > 40
+        assert lit.any(), "nothing was drawn"
+        ys, xs = np.nonzero(lit)
+        return xs.mean() / img.shape[1], ys.mean() / img.shape[0]
+
+    def test_model_is_not_mirrored(self):
+        # A triangle sitting on the model's +X side has to appear on the
+        # right of the frame.  Getting the view basis handedness wrong
+        # mirrors every icon, which reads as backwards text on real saves.
+        r = render.IconRenderer(128, 128)
+        img = r.render(self._one_triangle((1.0, 0.0, 0.0)),
+                       camera=(0.0, 0.0, -8.0), fit=False,
+                       lighting=render.LIGHTING_PRESETS["none"])
+        x, _ = self._centre_of_mass(img)
+        assert x > 0.55, "model is mirrored horizontally (x=%.2f)" % x
+
+    def test_model_is_not_upside_down(self):
+        # PS2 icon space has Y pointing down, so a triangle at +Y in file
+        # coordinates must come out at the bottom of the frame.
+        r = render.IconRenderer(128, 128)
+        img = r.render(self._one_triangle((0.0, 1.0, 0.0)),
+                       camera=(0.0, 0.0, -8.0), fit=False,
+                       lighting=render.LIGHTING_PRESETS["none"])
+        _, y = self._centre_of_mass(img)
+        assert y > 0.55, "model is flipped vertically (y=%.2f)" % y
+
     def test_rotation_changes_the_image(self, icon):
         r = render.IconRenderer(96, 96)
         assert not np.array_equal(r.render(icon, angle=0.0),

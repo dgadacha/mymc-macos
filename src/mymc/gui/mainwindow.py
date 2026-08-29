@@ -1,5 +1,6 @@
 """The main window of the mymc graphical interface."""
 
+import io
 import os
 import traceback
 
@@ -24,7 +25,12 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, ps2icon, ps2mc, ps2save, render
-from ..ps2mc_dir import DF_PROTECTED, DF_WRITE, mode_is_dir
+from ..ps2mc_dir import (
+    DF_PROTECTED,
+    DF_WRITE,
+    PS2MC_DIRENT_LENGTH,
+    mode_is_dir,
+)
 from .appicon import app_icon, toolbar_icons
 from .iconview import IconView
 
@@ -37,6 +43,26 @@ SAVE_FILTER = (
 IMAGE_FILTER = (
     "PS2 memory card images (*.ps2 *.mcd *.mc2 *.bin *.mcr);;All files (*)"
 )
+
+
+def classify_file(path):
+    """Say whether a file is a memory card image or a save file.
+
+    Returns ``"card"``, ``"save"`` or ``None``.  This reads the file's
+    header rather than trusting its name: memory card images turn up as
+    .ps2, .mcd, .mc2, .mcr, .bin and with no extension at all, and .bin
+    could just as easily be something else entirely.
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(PS2MC_DIRENT_LENGTH * 3)
+    except OSError:
+        return None
+    if head.startswith(ps2mc.PS2MC_MAGIC):
+        return "card"
+    if ps2save.detect_file_type(io.BytesIO(head)) is not None:
+        return "save"
+    return None
 
 
 class _Worker(QThread):
@@ -426,7 +452,7 @@ class MainWindow(QMainWindow):
                 placeholder=(
                     "Select a save to preview its icon"
                     if self.mc is not None
-                    else "Open a memory card image to begin"
+                    else "Drop a memory card image here,\nor use File \u25b8 Open"
                 ),
             )
             self.title_label.setText(
@@ -705,32 +731,65 @@ class MainWindow(QMainWindow):
     #
 
     def _droppable(self, event):
-        if self.mc is None or not event.mimeData().hasUrls():
+        """Classify the dragged files: [(kind, path), ...]."""
+        mime = event.mimeData()
+        if not mime.hasUrls():
             return []
-        paths = []
-        for url in event.mimeData().urls():
+        dropped = []
+        for url in mime.urls():
             if not url.isLocalFile():
                 continue
             path = url.toLocalFile()
-            if os.path.splitext(path)[1].lower() in (
-                ".psu", ".max", ".cbs", ".sps", ".xps",
-            ):
-                paths.append(path)
-        return paths
+            kind = classify_file(path)
+            if kind is not None:
+                dropped.append((kind, path))
+        return dropped
 
     def dragEnterEvent(self, event):
-        if self._droppable(event):
+        # Classify once here: dragMoveEvent fires on every mouse move and
+        # must not re-read the files each time.
+        self._drop_targets = self._droppable(event)
+        if self._drop_targets:
             event.acceptProposedAction()
 
     def dragMoveEvent(self, event):
-        if self._droppable(event):
+        if getattr(self, "_drop_targets", None):
             event.acceptProposedAction()
 
+    def dragLeaveEvent(self, event):
+        self._drop_targets = []
+
     def dropEvent(self, event):
-        paths = self._droppable(event)
-        if paths:
-            event.acceptProposedAction()
-            self.import_files(paths)
+        dropped = getattr(self, "_drop_targets", None) or self._droppable(event)
+        self._drop_targets = []
+        if not dropped:
+            return
+        event.acceptProposedAction()
+        self.open_dropped(dropped)
+
+    def open_dropped(self, dropped):
+        """Act on dropped files: open a card, import saves into it."""
+        cards = [path for (kind, path) in dropped if kind == "card"]
+        saves = [path for (kind, path) in dropped if kind == "save"]
+
+        if cards:
+            self.open_image(cards[0])
+            if len(cards) > 1:
+                self.statusBar().showMessage(
+                    "Opened %s; drop the others one at a time."
+                    % os.path.basename(cards[0]),
+                    5000,
+                )
+        if saves:
+            if self.mc is None:
+                QMessageBox.information(
+                    self,
+                    "Import",
+                    "Open a memory card image first, then drop save files "
+                    "onto it to import them.",
+                )
+                return
+            self.import_files(saves)
 
     def closeEvent(self, event):
         self.close_image()

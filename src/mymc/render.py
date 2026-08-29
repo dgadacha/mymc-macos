@@ -156,6 +156,11 @@ class IconRenderer(object):
         # Look from the camera position towards the origin.
         eye = np.asarray(camera, dtype=np.float32)
         if fit:
+            # Centre the model on its bounding box before framing it, so
+            # icons that sit off-origin do not float in a corner.
+            lo = positions.min(axis=0)
+            hi = positions.max(axis=0)
+            positions = positions - (lo + hi) * 0.5
             radius = float(np.linalg.norm(positions, axis=1).max())
             if radius > 1e-4:
                 # Distance at which a sphere of that radius just fits the
@@ -164,14 +169,17 @@ class IconRenderer(object):
                 eye = eye * (distance / (np.linalg.norm(eye) or 1.0))
         forward = -eye
         forward = forward / (np.linalg.norm(forward) or 1.0)
-        up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
-        right = np.cross(forward, up)
+        world_up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+        # Right-handed basis: with X right, Y up and Z the viewing
+        # direction, right is cross(up, forward) -- taking the cross
+        # products the other way round mirrors the image.
+        right = np.cross(world_up, forward)
         norm = np.linalg.norm(right)
         if norm < 1e-6:
             right = np.array([1.0, 0.0, 0.0], dtype=np.float32)
         else:
             right = right / norm
-        up = np.cross(right, forward)
+        up = np.cross(forward, right)
         view = np.stack([right, up, forward])  # rows
 
         eye_pos = (positions - eye) @ view.T  # (n, 3), z = depth into screen

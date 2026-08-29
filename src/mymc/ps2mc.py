@@ -635,6 +635,15 @@ class ps2mc(object):
         s = f.read(0x154)
         if len(s) != 0x154 or not s.startswith(PS2MC_MAGIC):
             if params is None:
+                # PCSX2 creates a card file up front and leaves it erased
+                # until a game formats it; say so rather than calling it
+                # corrupt.
+                if len(s) == 0x154 and s.count(b"\xFF") == len(s):
+                    raise corrupt(
+                        "memory card image is blank; format it first"
+                        " (mymc IMAGE format -f)",
+                        f,
+                    )
                 raise corrupt("Not a PS2 memory card image", f)
             self.f = f
             self.format(params)

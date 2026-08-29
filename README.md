@@ -89,8 +89,11 @@ mymc-gui                    # ou :  mymc Mcd001.ps2 gui
 - aperçu de l'**icône 3D animée** de la sauvegarde : clique-glisse pour la
   faire tourner, double-clic pour recadrer, clic droit pour l'éclairage,
   la caméra et l'animation ;
-- import par glisser-déposer d'un `.psu`, `.max`, `.cbs`, `.sps` ou `.xps`
-  sur la fenêtre ;
+- **glisser-déposer** : lâche une image de carte sur la fenêtre pour
+  l'ouvrir, ou un `.psu`, `.max`, `.cbs`, `.sps`, `.xps` pour l'importer.
+  Le type est reconnu à l'en-tête du fichier, pas à son extension : une
+  carte nommée `Mcd001.bin`, `.mcd`, `.mcr` ou sans extension du tout est
+  ouverte quand même ;
 - export en `.psu` (EMS) ou `.max` (MAX Drive), avec barre de progression ;
 - espace libre affiché en permanence dans la barre d'état.
 
@@ -168,6 +171,30 @@ icon = ps2icon.parse_icon(open("list.icn", "rb").read())
 render.render_to_png(icon, "icone.png", size=256, angle=0.6)
 ```
 
+## Validé sur de vraies cartes
+
+Testé sur les cartes PCSX2 de `~/Library/Application Support/PCSX2/memcards`,
+contenant des sauvegardes de Kingdom Hearts, Gran Turismo 4, Batman Begins
+et Burnout 3 :
+
+- lecture du sommaire, des titres (japonais pleine chasse compris) et
+  vérification du système de fichiers : sans erreur ;
+- **les icônes 3D des jeux s'affichent**, texturées et éclairées comme
+  dans le navigateur de la PS2 ;
+- les quatre sauvegardes survivent au cycle carte → `.psu` → `.max` →
+  carte avec des empreintes SHA-256 identiques.
+
+Une carte que PCSX2 a créée mais qu'aucun jeu n'a encore formatée est
+entièrement à `0xFF` : mymc le dit et propose de la formater, au lieu de
+la déclarer illisible.
+
+Un point de lenteur : la compression MAX Drive est en Python pur. Une
+sauvegarde de 130 Ko passe en une fraction de seconde, mais les 1,5 Mo de
+données de jeu de Gran Turismo 4 demandent une vingtaine de secondes
+(pour un gain nul — ces données sont déjà incompressibles). L'interface
+affiche une barre de progression et reste réactive. Le format `.psu`, par
+défaut, est instantané.
+
 ## Précautions
 
 - **Ne modifie pas une image pendant que PCSX2 l'utilise.** L'émulateur
@@ -184,13 +211,14 @@ render.render_to_png(icon, "icone.png", size=256, angle=0.6)
 
 ```bash
 .venv/bin/pip install pytest
-.venv/bin/python -m pytest          # 79 tests
+.venv/bin/python -m pytest          # 101 tests
 ```
 
 Les tests couvrent les allers-retours de compression LZARI, la correction
 d'erreurs ECC (comparée bit à bit à l'algorithme d'origine), le système de
-fichiers, les quatre formats de sauvegarde, le rendu des icônes et la
-ligne de commande de bout en bout.
+fichiers, les quatre formats de sauvegarde, le rendu des icônes, le
+glisser-déposer et la ligne de commande de bout en bout. Les tests
+d'interface tournent sans écran, via le greffon Qt « offscreen ».
 
 Organisation :
 
@@ -222,6 +250,13 @@ Trois points ont demandé de l'attention :
   l'algorithme Python 2 sur 500 motifs d'erreur aléatoires : aucune
   divergence. Les erreurs d'un bit sont corrigées, celles de deux bits
   détectées.
+
+Le rendu des icônes, lui, n'a pas d'original à comparer. Le premier jet
+affichait tout **en miroir** — « KINGDOM HEARTS » se lisait à l'envers —
+parce que la base de la caméra utilisait `cross(forward, up)` au lieu de
+`cross(up, forward)`. Deux tests le verrouillent désormais : un triangle
+placé côté +X du modèle doit apparaître à droite de l'image, un triangle
+en +Y (la PS2 oriente Y vers le bas) doit apparaître en bas.
 
 ## Licence
 
